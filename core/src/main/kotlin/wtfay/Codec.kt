@@ -1,6 +1,5 @@
 package wtfay
 
-import java.math.BigInteger
 import kotlin.math.sqrt
 
 /** Three-word address: an unordered pair of common words plus one argo word. */
@@ -14,35 +13,32 @@ class AddressException(message: String) : IllegalArgumentException(message)
  * Maps grid cells to addresses and back.
  *
  * Address space: C(P, 2) unordered common pairs × A argo words, M in total.
- * A cell index is scrambled with an affine bijection x → (x·MUL + ADD) mod M,
- * so neighbouring cells get unrelated words, then split into (pair, argo).
+ * A cell index is scrambled with a [Feistel] permutation of [0, M), so
+ * neighbouring cells get unrelated words, then split into (pair, argo).
+ * Indices at or above the number of cells are unused, which catches most typos.
+ *
+ * [seed] and the dictionaries define every address: once published, never change them.
  */
-class Codec(val dict: Dictionaries, val grid: Grid = Grid()) {
+class Codec(val dict: Dictionaries, val grid: Grid = Grid(), seed: Long = SEED) {
     private val p = dict.common.size.toLong()
     private val a = dict.argo.size.toLong()
     val pairs: Long = p * (p - 1) / 2
     val space: Long = Math.multiplyExact(pairs, a)
 
-    private val m = BigInteger.valueOf(space)
-    private val mul: BigInteger
-    private val inv: BigInteger
-    private val add: BigInteger = BigInteger.valueOf((space * 0.381966).toLong())  // 2 - φ
+    private val scramble: Feistel
 
     init {
         require(space >= grid.totalCells) {
             "dictionaries too small: $space addresses for ${grid.totalCells} cells"
         }
-        // a multiplier near M/φ that is coprime with M
-        var c = BigInteger.valueOf((space * 0.6180339887).toLong()) or BigInteger.ONE
-        while (c.gcd(m) != BigInteger.ONE) c += BigInteger.TWO
-        mul = c
-        inv = c.modInverse(m)
+        scramble = Feistel(space, seed)
     }
 
     fun encode(lat: Double, lon: Double): Address = encodeCell(grid.cellOf(lat, lon))
 
     fun encodeCell(cell: Long): Address {
-        val s = BigInteger.valueOf(cell).multiply(mul).add(add).mod(m).toLong()
+        require(cell in 0 until grid.totalCells) { "cell out of range: $cell" }
+        val s = scramble.permute(cell)
         val pair = s / a
         val argo = (s % a).toInt()
         val (i, j) = unrankPair(pair)
@@ -56,7 +52,7 @@ class Codec(val dict: Dictionaries, val grid: Grid = Grid()) {
         val k = dict.argo.indexOf(w3) ?: throw AddressException("неизвестное слово арго: $w3")
         if (i == j) throw AddressException("первые два слова совпадают: $w1")
         val s = rankPair(minOf(i, j), maxOf(i, j)) * a + k
-        val cell = BigInteger.valueOf(s).subtract(add).multiply(inv).mod(m).toLong()
+        val cell = scramble.unpermute(s)
         if (cell >= grid.totalCells) throw AddressException("такого адреса нет: $w1 $w2 $w3")
         return cell
     }
@@ -70,6 +66,9 @@ class Codec(val dict: Dictionaries, val grid: Grid = Grid()) {
     }
 
     companion object {
+        /** Fixed forever with the first release: changing it moves every address. */
+        const val SEED = 0x7479_6764_6562_6c79L  // "tygdebly"
+
         /** Rank of the pair (i < j) in colex order: j·(j−1)/2 + i. */
         fun rankPair(i: Int, j: Int): Long {
             require(i in 0 until j) { "need 0 <= i < j, got $i, $j" }
