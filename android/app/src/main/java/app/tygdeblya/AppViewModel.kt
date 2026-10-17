@@ -75,8 +75,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _locating = MutableStateFlow(false)
     val locating = _locating.asStateFlow()
 
-    private val _camera = MutableSharedFlow<CameraMove>(extraBufferCapacity = 4)
+    // replay = 1 keeps a move made before the map is ready (a link at cold start) until it is taken
+    private val _camera = MutableSharedFlow<CameraMove>(replay = 1, extraBufferCapacity = 4)
     val camera = _camera.asSharedFlow()
+
+    /** The map has flown there: don't replay the move to the next map (after rotation, say). */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    fun cameraDone() = _camera.resetReplayCache()
 
     private val _toast = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val toast = _toast.asSharedFlow()

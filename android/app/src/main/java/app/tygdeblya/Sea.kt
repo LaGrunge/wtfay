@@ -118,7 +118,7 @@ fun NemoOverlay(visible: Boolean, onClose: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) {
             Column(
-                Modifier.widthIn(max = 520.dp).padding(24.dp).glass().verticalScroll(rememberScrollState())
+                Modifier.widthIn(max = 520.dp).padding(24.dp).glass().background(Brand.Panel).verticalScroll(rememberScrollState())
                     .padding(horizontal = 24.dp, vertical = 22.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {

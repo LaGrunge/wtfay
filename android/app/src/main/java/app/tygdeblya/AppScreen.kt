@@ -133,7 +133,7 @@ fun AppScreen(vm: AppViewModel) {
     LaunchedEffect(controller, me) { controller?.setMe(me?.let { Geo(it.latitude, it.longitude) }, me?.accuracy ?: 0f) }
     LaunchedEffect(controller) {
         val c = controller ?: return@LaunchedEffect
-        vm.camera.collect { c.flyTo(it.geo, it.zoom) }
+        vm.camera.collect { c.flyTo(it.geo, it.zoom); vm.cameraDone() }
     }
 
     // sea easter eggs: what water the selected square and you are in
