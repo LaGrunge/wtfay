@@ -1,9 +1,8 @@
-"""Build the final word lists for the 3-word address scheme.
+"""Stage 1: clean the raw word lists.
 
-  address = {common, common} (unordered pair) x argo
-  need C(P,2) * A >= Earth area / 9 m^2
-
-Outputs go to ~/proj/wtfay/data/final/.
+Writes common_pool.txt (all usable common words) and argo_ocr.txt (Elistratov
+headwords after OCR cleanup) to ~/proj/wtfay/data/final/; finalize.py then
+picks the final common.txt and argo.txt from them.
 """
 import json, re, collections, os, math
 import pymorphy3
@@ -130,12 +129,10 @@ for w, pos in sorted(common_src.items()):
 
 # ---------------------------------------------------------------- write + stats
 P, A = len(common), len(argo)
-cells = 510_072_000e6 / 9
-combos = P * (P - 1) // 2 * A
 def dump(name, words):
     open(f'{OUT}/{name}', 'w', encoding='utf-8').write('\n'.join(sorted(words, key=key)) + '\n')
-dump('common.txt', common.values())
-dump('argo.txt', argo.values())
+dump('common_pool.txt', common.values())
+dump('argo_ocr.txt', argo.values())
 with open(f'{OUT}/argo_rejected.tsv', 'w', encoding='utf-8') as f:
     f.write('ocr\tnormalized\treason\n')
     for r in rejected:
@@ -145,9 +142,6 @@ stats = {
     'common_by_pos': dict(collections.Counter(common_src[w] for w in common.values())),
     'common_rejected': dict(crej),
     'argo_rejected': dict(collections.Counter(r[2] if not r[2].startswith('duplicate') else 'duplicate' for r in rejected)),
-    'cells_3x3_earth': f'{cells:.4g}', 'combinations': f'{combos:.4g}',
-    'coverage_ratio': round(combos / cells, 3),
-    'min_argo_needed': math.ceil(cells / (P * (P - 1) // 2)),
 }
-json.dump(stats, open(f'{OUT}/stats.json', 'w'), ensure_ascii=False, indent=1)
+json.dump(stats, open(f'{OUT}/stats_clean.json', 'w'), ensure_ascii=False, indent=1)
 print(json.dumps(stats, ensure_ascii=False, indent=1))

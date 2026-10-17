@@ -120,12 +120,14 @@ class CodecTest {
     fun `pair ranking round trips`() {
         val rnd = Random(2)
         val p = Shared.dict.common.size
-        val samples = listOf(0 to 1, 0 to p - 1, p - 2 to p - 1) +
-            List(10_000) { val j = rnd.nextInt(1, p); rnd.nextInt(0, j) to j }
+        val samples = listOf(0 to 1, 1 to 0, 0 to p - 1, p - 1 to 0, p - 2 to p - 1, p - 1 to p - 2) +
+            List(10_000) { val i = rnd.nextInt(p); val j = rnd.nextInt(p - 1); i to if (j < i) j else j + 1 }
         for ((i, j) in samples) {
-            assertEquals(i to j, Codec.unrankPair(Codec.rankPair(i, j)))
+            assertEquals(i to j, codec.unrankPair(codec.rankPair(i, j)))
         }
-        assertEquals(codec.pairs - 1, Codec.rankPair(p - 2, p - 1))
+        assertEquals(0L, codec.rankPair(0, 1))
+        assertEquals(codec.pairs - 1, codec.rankPair(p - 1, p - 2))
+        assertNotEquals(codec.rankPair(3, 5), codec.rankPair(5, 3))
     }
 
     @Test
@@ -139,11 +141,27 @@ class CodecTest {
     }
 
     @Test
-    fun `first two words can be swapped, typed in caps or without yo`() {
+    fun `words can be typed in caps or without yo`() {
         val a = codec.encode(55.75393, 37.62079)
         val cell = codec.grid.cellOf(55.75393, 37.62079)
-        assertEquals(cell, codec.decodeCell(a.second, a.first, a.argo))
         assertEquals(cell, codec.decodeCell(a.first.uppercase(), a.second.replace('ё', 'е'), a.argo.replace('ё', 'е')))
+    }
+
+    @Test
+    fun `swapped first words are another place or a hint`() {
+        val rnd = Random(5)
+        var hints = 0
+        repeat(2_000) {
+            val cell = rnd.nextLong(codec.grid.totalCells)
+            val a = codec.encodeCell(cell)
+            try {
+                assertNotEquals(cell, codec.decodeCell(a.second, a.first, a.argo))
+            } catch (e: AddressException) {
+                assertTrue("${a.first} ${a.second} ${a.argo}?" in e.message!!, e.message)
+                hints++
+            }
+        }
+        assertTrue(hints > 0)
     }
 
     @Test
@@ -183,8 +201,8 @@ class CodecTest {
                 found++
             }
         }
-        // about 1 - 1/1.31 ≈ 24 % of combinations are unused
-        assertTrue(found in 300..700, "unused combinations: $found of 2000")
+        val expected = 2_000 * (1 - codec.grid.totalCells.toDouble() / codec.space)
+        assertTrue(kotlin.math.abs(found - expected) < 100, "unused combinations: $found of 2000, expected $expected")
     }
 
     @Test
