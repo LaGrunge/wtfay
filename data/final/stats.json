@@ -1,0 +1,34 @@
+{
+ "common_words": 120358,
+ "argo_words": 10259,
+ "common_by_pos": {
+  "noun": 55514,
+  "adjf": 32696,
+  "advb": 3829,
+  "infn": 28319
+ },
+ "common_rejected": {
+  "hyphen / non-letters": 2388,
+  "also in argo": 4112,
+  "obscene root": 209,
+  "too long (>15)": 10525,
+  "ё/е duplicate": 7
+ },
+ "argo_rejected": {
+  "ordinary word, only inside a phrase": 1845,
+  "inflected form": 94,
+  "not a single cyrillic word": 8,
+  "duplicate": 64,
+  "function word": 43,
+  "too short": 59,
+  "glued phrase": 40,
+  "impossible soft/hard sign": 6,
+  "no vowels": 8,
+  "starts with impossible letter": 3,
+  "too long": 1
+ },
+ "cells_3x3_earth": "5.667e+13",
+ "combinations": "7.431e+13",
+ "coverage_ratio": 1.311,
+ "min_argo_needed": 7825
+}

@@ -1,0 +1,24 @@
+# build
+build/
+.gradle/
+.kotlin/
+.idea/
+*.iml
+local.properties
+
+# copyrighted sources and their raw OCR: not redistributable
+*.pdf
+*.djvu
+data/elistratov_ocr/
+
+# superseded intermediate files
+data/argo_grachev.txt
+data/argo_union.txt
+data/pool_lemmas.tsv
+
+# not part of this repo (yet)
+LoveGlobe/
+android-setup.sh
+data/argo_elistratov.txt
+data/elistratov_single.txt
+data/elistratov_multi.txt
