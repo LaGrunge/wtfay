@@ -21,12 +21,19 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
-enum class Origin { ME, TAP, SEARCH, SAVED, LINK }
+enum class Origin { ME, TAP, SEARCH, SAVED, LINK, NEMO }
 
-data class Selection(val square: Square, val origin: Origin, val near: String? = null, val savedName: String? = null)
+data class Selection(
+    val square: Square,
+    val origin: Origin,
+    val near: String? = null,
+    val savedName: String? = null,
+    val water: Water? = null,
+)
 
 sealed interface SearchItem {
     data class Address(val square: Square) : SearchItem
+    data object Secret : SearchItem
     data class Completion(val text: String) : SearchItem
     data class PlaceHit(val place: Place) : SearchItem
 }
@@ -74,6 +81,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _toast = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val toast = _toast.asSharedFlow()
 
+    /** What water you are standing in (or sailing on), if any. */
+    private val _meWater = MutableStateFlow<Water?>(null)
+    val meWater = _meWater.asStateFlow()
+
+    private val _nemo = MutableStateFlow(false)
+    val nemo = _nemo.asStateFlow()
+
     /** Where the map is looking; biases place search. */
     var mapCenter: Geo? = null
 
@@ -110,6 +124,30 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearSelection() {
         _selection.value = null
+    }
+
+    fun setWater(sq: Square, water: Water?) {
+        _selection.update { if (it?.square == sq) it.copy(water = water) else it }
+    }
+
+    fun setMeWater(water: Water?) {
+        _meWater.value = water
+    }
+
+    // ── ///ветер.свобода.кайф ───────────────────────────────────────────────
+
+    private fun goNemo() {
+        val w = _wtfay.value ?: return
+        clearSearch()
+        select(w.square(Sea.NEMO.lat, Sea.NEMO.lon), Origin.NEMO, zoom = 3.2)
+        viewModelScope.launch {
+            delay(1500)  // let the camera arrive first
+            _nemo.value = true
+        }
+    }
+
+    fun closeNemo() {
+        _nemo.value = false
     }
 
     private fun select(sq: Square, origin: Origin, move: Boolean = true, zoom: Double? = 19.0, savedName: String? = null) {
@@ -161,6 +199,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             _search.value = SearchState()
             return
         }
+        if (Sea.isSecret(text)) {
+            _search.value = SearchState(text, listOf(SearchItem.Secret))
+            return
+        }
         searchJob = viewModelScope.launch {
             val w = _wtfay.filterNotNull().first()
             when (val input = withContext(Dispatchers.Default) { w.read(text) }) {
@@ -191,6 +233,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             is SearchItem.Address -> {
                 select(item.square, Origin.SEARCH); clearSearch()
             }
+            SearchItem.Secret -> goNemo()
             is SearchItem.Completion -> onQuery(item.text)
             is SearchItem.PlaceHit -> {
                 val w = _wtfay.value ?: return
@@ -232,8 +275,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun shareText(sel: Selection): String {
         val sq = sel.square
-        val head = when (sel.origin) {
-            Origin.ME -> "Я тут, бля!"
+        val head = when {
+            sel.origin == Origin.NEMO -> "Я в точке Немо, бля! До ближайшей земли 2 688 км."
+            sel.origin == Origin.ME && sel.water?.sailable == true -> "Я тут, полундра! Пишу с борта."
+            sel.origin == Origin.ME -> "Я тут, бля!"
             else -> "Ты где, бля? Давай тут:"
         }
         val c = sq.center
@@ -279,6 +324,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 return@launch
             }
             val words = WORDS.find(Uri.decode(text))?.groupValues
+            if (words != null && Sea.isSecret(words[0])) {
+                goNemo(); return@launch
+            }
             val sq = words?.let { w.find(it[1], it[2], it[3]) }
             if (sq != null) select(sq, Origin.LINK) else _toast.tryEmit("Тут нет трёх слов, бля")
         }

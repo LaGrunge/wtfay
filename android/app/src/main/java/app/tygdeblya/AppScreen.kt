@@ -45,6 +45,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,6 +62,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 @Composable
@@ -70,6 +72,7 @@ fun AppScreen(vm: AppViewModel) {
     val focus = LocalFocusManager.current
     val density = LocalDensity.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val scope = rememberCoroutineScope()
 
     val wtfay by vm.wtfay.collectAsStateWithLifecycle()
     val selection by vm.selection.collectAsStateWithLifecycle()
@@ -79,6 +82,8 @@ fun AppScreen(vm: AppViewModel) {
     val saved by vm.saved.collectAsStateWithLifecycle()
     val search by vm.search.collectAsStateWithLifecycle()
     val locating by vm.locating.collectAsStateWithLifecycle()
+    val meWater by vm.meWater.collectAsStateWithLifecycle()
+    val nemo by vm.nemo.collectAsStateWithLifecycle()
 
     var controller by remember { mutableStateOf<MapController?>(null) }
     var granted by remember { mutableStateOf(vm.locator.allowed()) }
@@ -131,6 +136,31 @@ fun AppScreen(vm: AppViewModel) {
         vm.camera.collect { c.flyTo(it.geo, it.zoom) }
     }
 
+    // sea easter eggs: what water the selected square and you are in
+    LaunchedEffect(controller, selection?.square) {
+        val c = controller ?: return@LaunchedEffect
+        val sel = selection ?: return@LaunchedEffect
+        // wait for the camera to fly there, then once more for the tiles
+        if (sel.origin != Origin.TAP) delay(1700)
+        repeat(2) {
+            c.waterAt(sel.square.center)?.let { vm.setWater(sel.square, it); return@LaunchedEffect }
+            delay(1200)
+        }
+    }
+    LaunchedEffect(controller, me) {
+        val c = controller ?: return@LaunchedEffect
+        val g = me?.let { Geo(it.latitude, it.longitude) } ?: return@LaunchedEffect
+        if (c.onScreen(g)) vm.setMeWater(c.waterAt(g))
+    }
+
+    // shake: a storm rocks the map and the sea has something to say
+    ShakeListener {
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        toast = "🌊 " + Sea.SAYINGS.random()
+        controller?.let { c -> scope.launch { c.storm() } }
+    }
+
+    BackHandler(enabled = nemo) { vm.closeNemo() }
     BackHandler(enabled = searchFocused || search.query.isNotEmpty()) {
         vm.clearSearch(); focus.clearFocus()
     }
@@ -183,7 +213,7 @@ fun AppScreen(vm: AppViewModel) {
                 enter = slideInVertically { it } + fadeIn(),
                 exit = slideOutVertically { it } + fadeOut(),
             ) {
-                HereButton(locating, onClick = ::here)
+                HereButton(locating, onWater = meWater?.sailable == true, onClick = ::here)
             }
             AnimatedVisibility(
                 visible = selection != null,
@@ -241,6 +271,8 @@ fun AppScreen(vm: AppViewModel) {
             val window = (view.context as? android.app.Activity)?.window ?: return@LaunchedEffect
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !look.dark
         }
+
+        NemoOverlay(nemo, onClose = vm::closeNemo)
 
         LoadingOverlay(visible = wtfay == null)
     }

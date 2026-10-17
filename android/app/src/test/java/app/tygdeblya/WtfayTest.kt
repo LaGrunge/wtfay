@@ -63,6 +63,30 @@ class WtfayTest {
     }
 }
 
+class SeaTest {
+    @Test
+    fun `secret address is read in either order, any case, with or without slashes`() {
+        for (text in listOf("///ветер.свобода.кайф", "свобода ветер кайф", "ВЕТЕР.СВОБОДА.КАЙФ", " ///свобода.ветер.кайф ")) {
+            assertTrue(Sea.isSecret(text), text)
+        }
+        assertTrue(!Sea.isSecret("ветер.свобода.улёт"))
+        assertTrue(!Sea.isSecret("ветер.свобода"))
+    }
+
+    @Test
+    fun `secret address steals no real square`() {
+        // if the dictionaries or the seed change, pick other words for Sea.SECRET
+        assertNull(Shared.w.find("ветер", "свобода", "кайф"))
+        assertNull(Shared.w.find("свобода", "ветер", "кайф"))
+    }
+
+    @Test
+    fun `point Nemo is a real square in the south Pacific`() {
+        val sq = Shared.w.square(Sea.NEMO.lat, Sea.NEMO.lon)
+        assertTrue(sq.center.lat in -49.0..-48.7 && sq.center.lon in -123.5..-123.3)
+    }
+}
+
 object Shared {
     val w: Wtfay by lazy { Wtfay.load() }
 }

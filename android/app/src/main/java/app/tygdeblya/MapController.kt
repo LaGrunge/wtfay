@@ -5,6 +5,7 @@ import android.view.Gravity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.maplibre.android.camera.CameraPosition
@@ -32,6 +33,7 @@ import org.maplibre.geojson.LineString
 import org.maplibre.geojson.MultiLineString
 import org.maplibre.geojson.Point
 import org.maplibre.geojson.Polygon
+import kotlin.math.sin
 
 /**
  * Everything drawn on the MapLibre map. The UI pushes state in through the
@@ -128,10 +130,53 @@ class MapController(
         map.animateCamera(CameraUpdateFactory.newCameraPosition(pos), 1400)
     }
 
+    private var storming = false
+
+    /** Rocks the camera like a boat in a storm for a couple of seconds, then puts it back. */
+    suspend fun storm(durationMs: Long = 2600) {
+        if (storming) return
+        storming = true
+        val base = map.cameraPosition
+        val start = System.currentTimeMillis()
+        try {
+            while (true) {
+                val t = (System.currentTimeMillis() - start) / 1000.0
+                val a = 1 - t * 1000 / durationMs
+                if (a <= 0) break
+                map.moveCamera(CameraUpdateFactory.newCameraPosition(
+                    CameraPosition.Builder(base)
+                        .bearing(base.bearing + sin(t * 7) * 7 * a)
+                        .tilt((base.tilt + 14 * a * (1 + sin(t * 5)) / 2).coerceIn(0.0, 60.0))
+                        .build()
+                ))
+                delay(16)
+            }
+        } finally {
+            map.moveCamera(CameraUpdateFactory.newCameraPosition(base))
+            storming = false
+        }
+    }
+
     fun resetNorth() {
         map.animateCamera(CameraUpdateFactory.newCameraPosition(
             CameraPosition.Builder(map.cameraPosition).bearing(0.0).tilt(0.0).build()), 600)
     }
+
+    /**
+     * What water is under [geo], read from the rendered map: null if dry land,
+     * or if the point is off screen or the style is still loading.
+     */
+    fun waterAt(geo: Geo): Water? {
+        val s = style ?: return null
+        if (!onScreen(geo)) return null
+        val p = map.projection.toScreenLocation(LatLng(geo.lat, geo.lon))
+        val ids = s.layers.filter { it is FillLayer && "water" in it.id && !it.id.startsWith("tg-") }.map { it.id }
+        if (ids.isEmpty()) return null
+        val hit = map.queryRenderedFeatures(p, *ids.toTypedArray()).firstOrNull() ?: return null
+        return Water.of(hit.getStringProperty("class"))
+    }
+
+    fun onScreen(geo: Geo) = map.projection.visibleRegion.latLngBounds.contains(LatLng(geo.lat, geo.lon))
 
     val bearing: Double get() = map.cameraPosition.bearing
 

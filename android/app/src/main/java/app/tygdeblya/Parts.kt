@@ -123,7 +123,7 @@ fun addressText(sq: Square) = buildAnnotatedString {
 private val LOCATING = listOf("Ищу тебя…", "Пинаю спутники…", "Где ж ты, бля…", "Почти нашёл…", "Режу на квадратики…")
 
 @Composable
-fun HereButton(locating: Boolean, onClick: () -> Unit) {
+fun HereButton(locating: Boolean, onWater: Boolean, onClick: () -> Unit) {
     val pulse = rememberInfiniteTransition(label = "pulse")
     val glow by pulse.animateFloat(
         0.92f, 1.12f, infiniteRepeatable(tween(1300, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "glow",
@@ -156,7 +156,7 @@ fun HereButton(locating: Boolean, onClick: () -> Unit) {
             }
             Spacer(Modifier.width(12.dp))
             AnimatedContent(
-                if (locating) LOCATING[phrase] else "Я ТУТ, БЛЯ!",
+                if (locating) LOCATING[phrase] else if (onWater) "Я ТУТ, ПОЛУНДРА!" else "Я ТУТ, БЛЯ!",
                 transitionSpec = { (slideInVertically { it } + fadeIn()) togetherWith (slideOutVertically { -it } + fadeOut()) },
                 label = "here",
             ) { text ->
@@ -193,18 +193,36 @@ fun AddressCard(
     onStar: () -> Unit,
     onFocus: () -> Unit,
 ) {
-    val label = when (sel.origin) {
-        Origin.ME -> "ТЫ ТУТ, БЛЯ"
-        Origin.TAP -> "ЭТОТ КВАДРАТ"
-        Origin.SEARCH -> "НАШЁЛ"
-        Origin.SAVED -> "МОЁ МЕСТО"
-        Origin.LINK -> "ТЕБЕ ПРИСЛАЛИ"
+    val sailing = sel.water?.sailable == true
+    val openSea = sel.water == Water.OCEAN && sel.origin != Origin.ME
+    val label = when {
+        sel.origin == Origin.NEMO -> "ТОЧКА НЕМО"
+        sel.origin == Origin.ME && sailing -> "ТЫ НА ВОДЕ, ПОЛУНДРА"
+        openSea -> "НЕЙТРАЛЬНЫЕ ВОДЫ"
+        else -> when (sel.origin) {
+            Origin.ME -> "ТЫ ТУТ, БЛЯ"
+            Origin.TAP -> "ЭТОТ КВАДРАТ"
+            Origin.SEARCH -> "НАШЁЛ"
+            Origin.SAVED -> "МОЁ МЕСТО"
+            Origin.LINK -> "ТЕБЕ ПРИСЛАЛИ"
+            Origin.NEMO -> "ТОЧКА НЕМО"
+        }
+    }
+    val near = when {
+        sel.origin == Origin.NEMO -> "2 688 км до ближайшей земли. Свобода"
+        openSea -> Sea.openSea(sel.square)
+        sel.water == Water.POOL -> "Бассейн. Не писай в него"
+        else -> sel.near ?: "Квадрат 3×3 метра"
     }
     Column(Modifier.fillMaxWidth().glass().padding(start = 20.dp, end = 12.dp, top = 14.dp, bottom = 16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            if (openSea || sailing || sel.origin == Origin.NEMO) {
+                Sailboat(Modifier.size(width = 34.dp, height = 22.dp))
+                Spacer(Modifier.width(6.dp))
+            }
             Text(
                 label, style = MaterialTheme.typography.labelSmall,
-                color = if (sel.origin == Origin.ME) Brand.Acid else Brand.Muted,
+                color = if (sel.origin == Origin.ME || sel.origin == Origin.NEMO || openSea) Brand.Acid else Brand.Muted,
             )
             sel.savedName?.let {
                 Text("  ★ $it", style = MaterialTheme.typography.labelMedium, color = Brand.Gold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -231,7 +249,7 @@ fun AddressCard(
             Icon(Icons.Rounded.Place, null, tint = Brand.Faint, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
             Text(
-                sel.near ?: "Квадрат 3×3 метра",
+                near,
                 style = MaterialTheme.typography.bodyMedium, color = Brand.Muted,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).clickable(onClick = onFocus),
             )
@@ -375,6 +393,14 @@ private fun SearchRow(item: SearchItem, onClick: () -> Unit) {
                 Column(Modifier.weight(1f)) {
                     Text(addressText(item.square), style = MaterialTheme.typography.titleMedium)
                     Text("Есть такой квадрат. Погнали!", style = MaterialTheme.typography.bodyMedium, color = Brand.Muted)
+                }
+            }
+            SearchItem.Secret -> {
+                Sailboat(Modifier.size(width = 36.dp, height = 26.dp))
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("///ветер.свобода.кайф", style = MaterialTheme.typography.titleMedium, color = Brand.Acid)
+                    Text("Такого квадрата нет. Но кое-что есть", style = MaterialTheme.typography.bodyMedium, color = Brand.Muted)
                 }
             }
             is SearchItem.Completion -> {
